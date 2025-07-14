@@ -1,0 +1,145 @@
+Para ver el CRUD:
+	1.	Inicia sesión como admin@admin.com / admin123
+	2.	Agrega esto en router.js para cargar la vista del CRUD:
+
+import { renderEventManager } from '../pages/events.js';
+
+// Agrega esta línea en el router
+if (path === '/dashboard/events') return renderEventManager(app);
+
+🎯 ¿Qué hará esta vista?
+	•	Mostrar todos los eventos disponibles.
+	•	Permitir al visitante registrarse si hay cupo disponible.
+	•	Mostrarle en qué eventos ya está registrado.
+
+📁 Archivos que agregaremos:
+	•	src/pages/visitor.js: lógica para ver/registrarse en eventos.
+	•	src/services/registrations.js: funciones para manejar inscripciones.
+
+import { getEvents } from '../services/events.js';
+import { registerToEvent, getRegistrationsByUser } from '../services/registrations.js';
+import { checkAuth } from '../utils/auth.js';
+
+export async function renderVisitorView(container) {
+  const user = checkAuth();
+  if (!user || user.role !== 'visitor') {
+    return container.innerHTML = '<h2>Acceso denegado</h2>';
+  }
+
+  const events = await getEvents();
+  const registrations = await getRegistrationsByUser(user.id);
+  const registeredEventIds = registrations.map(reg => reg.eventId);
+
+  container.innerHTML = `
+    <h2>Eventos disponibles</h2>
+    <ul id="eventList">
+      ${events.map(event => {
+        const isRegistered = registeredEventIds.includes(event.id);
+        return `
+          <li>
+            <strong>${event.title}</strong> - ${event.location} (Capacidad: ${event.capacity})
+            ${isRegistered ? '<span>✅ Ya registrado</span>' :
+            `<button data-id="${event.id}" class="register">Registrarse</button>`}
+          </li>
+        `;
+      }).join('')}
+    </ul>
+  `;
+
+  document.querySelectorAll('.register').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const eventId = parseInt(btn.getAttribute('data-id'));
+      await registerToEvent(user.id, eventId);
+      location.reload();
+    });
+  });
+}
+
+📄 src/services/registrations.j
+
+export async function getRegistrationsByUser(userId) {
+  const res = await fetch('http://localhost:3000/registrations?userId=' + userId);
+  return await res.json();
+}
+
+export async function registerToEvent(userId, eventId) {
+  await fetch('http://localhost:3000/registrations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, eventId })
+  });
+}
+
+Agrega al router (en router.js)
+
+import { renderVisitorView } from '../pages/visitor.js';
+
+// Agrega esta condición en el router:
+if (path === '/dashboard/visitor') return renderVisitorView(app);
+
+🔁 Redirecciones automáticas según sesión:
+	1.	Si el usuario ya está logueado y trata de ir a /login o /register, lo mandamos a /dashboard.
+	2.	Si el usuario no está autenticado y quiere entrar a una ruta privada (por ejemplo /dashboard/events o /dashboard/visitor), lo mandamos a una página 404 personalizada.
+
+⸻
+
+🧩 PASO 1 – Vista personalizada 404
+
+📄 src/pages/notfound.js
+
+export function renderNotFound(container) {
+  container.innerHTML = `
+    <h2>404 - Página no encontrada</h2>
+    <p>La ruta que intentaste acceder no existe o no tienes permiso.</p>
+    <a href="/login">Volver al inicio</a>
+  `;
+}
+
+🧩 PASO 2 – Mejora de rutas en router.js
+
+📄 Reemplaza el contenido de router.js por:
+
+import { renderLogin } from '../pages/login.js';
+import { renderRegister } from '../pages/register.js';
+import { renderDashboard } from '../pages/dashboard.js';
+import { renderEventManager } from '../pages/events.js';
+import { renderVisitorView } from '../pages/visitor.js';
+import { renderNotFound } from '../pages/notfound.js';
+import { checkAuth } from '../utils/auth.js';
+
+export function initRouter() {
+  const path = window.location.pathname;
+  const app = document.getElementById('app');
+  const user = checkAuth();
+
+  // Redirigir si ya está logueado
+  if (user && (path === '/login' || path === '/register')) {
+    history.pushState({}, '', '/dashboard');
+    return renderDashboard(app, user);
+  }
+
+  // Rutas públicas
+  if (path === '/login') return renderLogin(app);
+  if (path === '/register') return renderRegister(app);
+
+  // Verificar autenticación
+  if (!user) {
+    history.pushState({}, '', '/not-found');
+    return renderNotFound(app);
+  }
+
+  // Rutas privadas
+  if (path === '/dashboard') return renderDashboard(app, user);
+  if (path === '/dashboard/events' && user.role === 'admin') return renderEventManager(app);
+  if (path === '/dashboard/visitor' && user.role === 'visitor') return renderVisitorView(app);
+
+  // Página no encontrada
+  return renderNotFound(app);
+}
+🧩 PASO 3 – Redirección con historial (para navegación interna)
+
+window.addEventListener('popstate', () => {
+  initRouter();
+});
+
+
