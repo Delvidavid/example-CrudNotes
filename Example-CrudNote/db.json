@@ -1,0 +1,31 @@
+{
+  "notes": [
+    {
+      "id": 1,
+      "ownerId": 1,
+      "title": "Nota personal",
+      "content": "Mi nota privada"
+    },
+    {
+      "content": "hola",
+      "id": 2
+    }
+  ],
+  "user": [
+    {
+      "id": 1,
+      "name": "David",
+      "email": "david@ejemplo.com",
+      "userName": "david",
+      "password": "123456"
+    },
+    {
+      "id": 2,
+      "name": "Ana",
+      "email": "ana@ejemplo.com",
+      "userName": "ana",
+      "password": "abcdef"
+    }
+  ],
+  "sharedNotes": []
+}
